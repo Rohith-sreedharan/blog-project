@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog Project</title>
+</head>
+<body>
+    <div>
+        <h1>Text to Speech</h1>
+        <textarea name="text" id="text" cols="30" rows="10"></textarea>
+        <button id="text-to-speech">Text to Speech</button>
+    </div>
+    <h1>Speech to Text</h1>
+    <button id="speech-to-text">Speech to Text</button>
+    <p id="output"></p>
+
+    <script>
+        const ttsButton = document.getElementById('text-to-speech');
+        ttsButton.addEventListener('click', async () => {
+            const text = document.getElementById('text').value;
+            const response = await fetch('/text_to_speech', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: text })
+            });
+
+            const result = await response.blob();
+            const audioUrl = URL.createObjectURL(result);
+            const audio = new Audio(audioUrl);
+            audio.play();
+        });
+
+        const sttButton = document.getElementById('speech-to-text');
+        const output = document.getElementById('output');
+
+        let mediaRecorder;
+        let audioChunks = [];
+
+        sttButton.addEventListener('click', async () => {
+            if (sttButton.textContent === 'Speech to Text') {
+                sttButton.textContent = 'Stop Recording';
+                audioChunks = [];
+
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'audio.wav');
+
+                    const response = await fetch('/transcribe', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    output.textContent = result.transcription;
+                    sttButton.textContent = 'Speech to Text';
+                };
+
+                mediaRecorder.start();
+            } else {
+                mediaRecorder.stop();
+                sttButton.textContent = 'Processing...';
+            }
+        });
+    </script>
+</body>
+</html>
